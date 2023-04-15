@@ -1,4 +1,4 @@
-Language: **Korean & English** [简体中文](./cn_README.md)
+Language: **Korean & English** [简体中文](./cn_README.md) [한국어](./ko_README.md)
 # DDSP-SVC-KOR
 ## Discord server (diff-svc 레포지토리 커뮤니티인데, DDSP 관련 얘기도 많음)
 [![Discord](https://img.shields.io/discord/1094270329729318913?color=%23738ADB&label=Discord&style=for-the-badge)](https://nguard.xyz/invite/diffsvckr)
