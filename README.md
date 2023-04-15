@@ -1,4 +1,63 @@
-Language: **English** [简体中文](./cn_README.md)
+Language: **Korean & English** [简体中文](./cn_README.md)
+# DDSP-SVC-KOR
+## Discord server (diff-svc 레포지토리 커뮤니티인데, DDSP 관련 얘기도 많음)
+[![Discord](https://img.shields.io/discord/1094270329729318913?color=%23738ADB&label=Discord&style=for-the-badge)](https://nguard.xyz/invite/diffsvckr)
+
+# * 주의사항 *
+## 1. **모르는건 물어봐도 되는데 대답이 느릴 수 있습니다**(위쪽에 Issues에 지금까지의 질답들이 있습니다. 모르는건 디스코드에서 물어보는게 더 빠릅니다.)
+## 2. **이 프로젝트는 학술 교류 목적으로 설립되었으며 프로덕션 환경을 위한 것이 아닙니다. 본 프로젝트의 모델에서 발생하는 음원으로 인해 발생하는 저작권 문제에 대해서는 책임을 지지 않습니다.**
+# local GPU에서 Diff-SVC 사용방법
+## 0.코드 구동을 위한 프로그램 설치 및 코드, 체크포인트 다운로드
+1. 아나콘다3 설치 (https://www.anaconda.com/products/distribution)
+    - 설치 중간에 PATH환경변수에 추가하겠냐는 질문이 있는데, 이 단계에서 등록하는게 마음이 편함
+2. ffmpeg 설치 (https://www.gyan.dev/ffmpeg/builds/)
+    - 압축해제한 폴더/bin 을 PATH환경변수에 추가해줘야 함
+    - Debian 혹은 Ubuntu Linux의 경우 다음 명령으로 설치
+        ```
+        sudo apt install ffmpeg
+        ```
+3. CUDA 11.8 설치 (https://developer.nvidia.com/cuda-11-8-0-download-archive?target_os=Windows&target_arch=x86_64&target_version=10&target_type=exe_local)
+    - 재시작이 있을 수 있음
+    - 리눅스의 경우 nvidia드라이버가 설치되어 있다면 따로 설치할 필요없음. 
+4. C++ Build Tool이용해서 C++ 14.x 버전 설치
+    - [Build Tools 다운로드](https://visualstudio.microsoft.com/ko/visual-cpp-build-tools/)
+    - 선택항목들 설치 (체크항목들을 설치하면 문제없이 프로젝트 진행 가능)
+        ![이미지](./C14.png)
+5. 현재 repository를 .zip으로 다운로드
+    - 압축해제 경로 전체에 한글이 없는게 좋음
+    - 압축해제하면 DDSP-SVC-KOR-main 폴더가 생김
+    - Linux라면 다음 명령어로 다운로드
+        ```
+        sudo apt install git
+        git clone https://github.com/wlsdml1114/DDSP-SVC-KOR.git
+        ```
+6. checkpoint 다운로드
+    - **(필수)** [**HubertSoft**](https://github.com/bshall/hubert/releases/download/v0.1/hubert-soft-0d54a1f4.pt)   인코더를 다운로드 받아서 `pretrain/hubert` 폴더 아래에 넣어준다.
+        - [ContentVec](https://ibm.ent.box.com/s/z1wgl1stco8ffooyatzdwsqn2psd9lrr)을 humbert 대신에 사용할 수 있음(Optional), config를 좀 바꾸긴 해야댐
+    -  **(필수)** 사전학습된 vocoder를 쓸 수도 있음 [DiffSinger Community Vocoders Project](https://openvpi.github.io/vocoders) 에서 맨 아래에 link에서 nsf_hifigan_20221211.zip 다운로드 받아서 `pretrain/` 폴더 안에 압축 해제
+## 1. 학습환경 세팅
+- 관리자 권한으로 anaconda prompt 열기
+- 아나콘다 가상환경 생성
+    - `conda create -n ddsp python=3.9`
+- 가상환경 진입
+    - `conda activate ddsp`
+- pytorch 설치
+    - [**official website**](https://pytorch.org/)
+    - 본인 쿠다 버전에 맞춰서 다운로드
+    - `pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118`
+- 프로젝트 폴더로 이동
+    - 본인의 경우 C:\Users\wlsdm\project\DDSP-SVC-KOR\
+- 필요한 라이브러리들 설치
+    - `pip install -r requirements.txt`
+## 2. 데이터 준비 및 전처리, 학습
+- notebook.ipynb의 순서를 따르면 됩니다.
+- jupyter lab 켜는법
+    - 아나콘다 프롬프트에 `jupyter-lab` 치면 chrome이 자동으로 열립니다
+    - 안열리면 `localhost:8888/lab` 으로 들어가세요
+- 왼쪽 파일 목록에서 notebook.ipynb를 키고 자신의 조건에 따라서 데이터 전처리 ~ 학습까지 진행하시면 됩니다.
+## 3. 결과 추론
+- To be continued..
+
 # DDSP-SVC
 <div align="center">
 <img src="https://storage.googleapis.com/ddsp/github_images/ddsp_logo.png" width="200px" alt="logo"></img>
