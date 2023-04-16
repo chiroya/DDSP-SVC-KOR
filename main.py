@@ -142,18 +142,18 @@ def cross_fade(a: np.ndarray, b: np.ndarray, idx: int):
     return result
 
 
-if __name__ == '__main__':
-    #device = 'cpu' 
+def inference(cmd = None):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     # parse commands
-    cmd = parse_args()
+    if cmd == None:
+        cmd = parse_args()
     
     # load ddsp model
     model, args = load_model(cmd.model_path, device=device)
     
     # load input
-    audio, sample_rate = librosa.load(cmd.input, sr=None)
+    audio, sample_rate = librosa.load(cmd.input, sr=44100)
     if len(audio.shape) > 1:
         audio = librosa.to_mono(audio)
     hop_size = args.data.block_size * sample_rate / args.data.sampling_rate
@@ -266,3 +266,6 @@ if __name__ == '__main__':
             current_length = current_length + silent_length + len(seg_output)
         sf.write(cmd.output, result, output_sample_rate)
     
+if __name__ == '__main__':
+    #device = 'cpu' 
+    inference()

@@ -56,7 +56,12 @@ Language: **Korean & English** [简体中文](./cn_README.md) [한국어](./ko_R
     - 안열리면 `localhost:8888/lab` 으로 들어가세요
 - 왼쪽 파일 목록에서 notebook.ipynb를 키고 자신의 조건에 따라서 데이터 전처리 ~ 학습까지 진행하시면 됩니다.
 ## 3. 결과 추론
-- To be continued..
+- notebook.ipynb의 맨 아래에 4. 결과물 뽑기에서 3가지만 세팅해주면 된다. (초보자의 경우)
+    ```
+    'model_path'            :   'exp/combsub-test/model_best.pt', # 추론에 사용하고자 하는 모델, 바로위에서 학습한 모델을 가져오면댐
+    'input'                 :   'data/train/audio/video-0000.wav', # 추론하고자 하는 노래파일의 위치 - 님들이 바꿔야댐 
+    'output'                :   'output.wav',  # 결과물 파일의 위치
+    ```
 
 # DDSP-SVC
 <div align="center">
