@@ -41,6 +41,8 @@ Language: **Korean & English** [简体中文](./cn_README.md) [한국어](./ko_R
     - `conda create -n ddsp python=3.9`
 - 가상환경 진입
     - `conda activate ddsp`
+- pip upgrade
+    - `python -m pip install --upgrade pip`
 - pytorch 설치
     - [**official website**](https://pytorch.org/)
     - 본인 쿠다 버전에 맞춰서 다운로드
