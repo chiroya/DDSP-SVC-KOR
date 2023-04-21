@@ -41,12 +41,15 @@ Language: **Korean & English** [简体中文](./cn_README.md) [한국어](./ko_R
     - `conda create -n ddsp python=3.9`
 - 가상환경 진입
     - `conda activate ddsp`
+- pip upgrade
+    - `python -m pip install --upgrade pip`
 - pytorch 설치
     - [**official website**](https://pytorch.org/)
     - 본인 쿠다 버전에 맞춰서 다운로드
     - `pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118`
 - 프로젝트 폴더로 이동
     - 본인의 경우 C:\Users\wlsdm\project\DDSP-SVC-KOR\
+        `cd C:\Users\wlsdm\project\DDSP-SVC-KOR\`
 - 필요한 라이브러리들 설치
     - `pip install -r requirements.txt`
 ## 2. 데이터 준비 및 전처리, 학습
