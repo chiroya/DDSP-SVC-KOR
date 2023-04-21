@@ -25,6 +25,13 @@ def parse_args(args=None, namespace=None):
         help="path to the model file",
     )
     parser.add_argument(
+        "-d",
+        "--device",
+        type=str,
+        default=None,
+        required=False,
+        help="cpu or cuda, auto if not set")
+    parser.add_argument(
         "-i",
         "--input",
         type=str,
@@ -143,11 +150,14 @@ def cross_fade(a: np.ndarray, b: np.ndarray, idx: int):
 
 
 def inference(cmd = None):
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    
     # parse commands
     if cmd == None:
         cmd = parse_args()
+
+    #device = 'cpu' 
+    device = cmd.device
+    if device is None:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     # load ddsp model
     model, args = load_model(cmd.model_path, device=device)
@@ -206,11 +216,16 @@ def inference(cmd = None):
     volume = torch.from_numpy(volume).float().to(device).unsqueeze(-1).unsqueeze(0)
     
     # load units encoder
+    if args.data.encoder == 'cnhubertsoftfish':
+        cnhubertsoft_gate = args.data.cnhubertsoft_gate
+    else:
+        cnhubertsoft_gate = 10
     units_encoder = Units_Encoder(
                         args.data.encoder, 
                         args.data.encoder_ckpt, 
                         args.data.encoder_sample_rate, 
-                        args.data.encoder_hop_size, 
+                        args.data.encoder_hop_size,
+                        cnhubertsoft_gate=cnhubertsoft_gate,
                         device = device)
                         
     # load enhancer
