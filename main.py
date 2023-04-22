@@ -149,9 +149,10 @@ def cross_fade(a: np.ndarray, b: np.ndarray, idx: int):
     return result
 
 
-if __name__ == '__main__':
+def inference(cmd = None):
     # parse commands
-    cmd = parse_args()
+    if cmd == None :
+        cmd = parse_args()
 
     #device = 'cpu' 
     device = cmd.device
