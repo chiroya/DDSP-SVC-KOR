@@ -11,18 +11,38 @@ from ast import literal_eval
 from slicer import Slicer
 from ddsp.vocoder import load_model, F0_Extractor, Volume_Extractor, Units_Encoder
 from ddsp.core import upsample
-from enhancer import Enhancer
+from diffusion.unit2mel import load_model_vocoder
 from tqdm import tqdm
 
+def check_args(ddsp_args, diff_args):
+    if ddsp_args.data.sampling_rate != diff_args.data.sampling_rate:
+        print("Unmatch data.sampling_rate!")
+        return False
+    if ddsp_args.data.block_size != diff_args.data.block_size:
+        print("Unmatch data.block_size!")
+        return False
+    if ddsp_args.data.encoder != diff_args.data.encoder:
+        print("Unmatch data.encoder!")
+        return False
+    return True
+    
 def parse_args(args=None, namespace=None):
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-m",
-        "--model_path",
+        "-diff",
+        "--diff_ckpt",
         type=str,
         required=True,
-        help="path to the model file",
+        help="path to the diffusion model checkpoint",
+    )
+    parser.add_argument(
+        "-ddsp",
+        "--ddsp_ckpt",
+        type=str,
+        required=False,
+        default="None",
+        help="path to the DDSP model checkpoint (for shallow diffusion)",
     )
     parser.add_argument(
         "-d",
@@ -70,14 +90,6 @@ def parse_args(args=None, namespace=None):
         help="key changed (number of semitones) | default: 0",
     )
     parser.add_argument(
-        "-e",
-        "--enhance",
-        type=str,
-        required=False,
-        default='true',
-        help="true or false | default: true",
-    )
-    parser.add_argument(
         "-pe",
         "--pitch_extractor",
         type=str,
@@ -110,12 +122,36 @@ def parse_args(args=None, namespace=None):
         help="response threhold (dB) | default: -60",
     )
     parser.add_argument(
-        "-eak",
-        "--enhancer_adaptive_key",
+        "-diffid",
+        "--diff_spk_id",
         type=str,
         required=False,
-        default=0,
-        help="adapt the enhancer to a higher vocal range (number of semitones) | default: 0",
+        default='auto',
+        help="diffusion speaker id (for multi-speaker model) | default: auto",
+    )
+    parser.add_argument(
+        "-speedup",
+        "--speedup",
+        type=str,
+        required=False,
+        default='auto',
+        help="speed up | default: auto",
+    )
+    parser.add_argument(
+        "-method",
+        "--method",
+        type=str,
+        required=False,
+        default='auto',
+        help="pndm or dpm-solver | default: auto",
+    )
+    parser.add_argument(
+        "-kstep",
+        "--k_step",
+        type=str,
+        required=False,
+        default=None,
+        help="shallow diffusion steps | default: None",
     )
     return parser.parse_args(args=args, namespace=namespace)
 
@@ -152,17 +188,17 @@ def cross_fade(a: np.ndarray, b: np.ndarray, idx: int):
 if __name__ == '__main__':
     # parse commands
     cmd = parse_args()
-
+    
     #device = 'cpu' 
     device = cmd.device
     if device is None:
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
-    # load ddsp model
-    model, args = load_model(cmd.model_path, device=device)
+    # load diffusion model
+    model, vocoder, args = load_model_vocoder(cmd.diff_ckpt, device=device)
     
     # load input
-    audio, sample_rate = librosa.load(cmd.input, sr=44100)
+    audio, sample_rate = librosa.load(cmd.input, sr=None)
     if len(audio.shape) > 1:
         audio = librosa.to_mono(audio)
     hop_size = args.data.block_size * sample_rate / args.data.sampling_rate
@@ -226,22 +262,56 @@ if __name__ == '__main__':
                         args.data.encoder_hop_size,
                         cnhubertsoft_gate=cnhubertsoft_gate,
                         device = device)
-                        
-    # load enhancer
-    if cmd.enhance == 'true':
-        print('Enhancer type: ' + args.enhancer.type)
-        enhancer = Enhancer(args.enhancer.type, args.enhancer.ckpt, device=device)
-    else:
-        print('Enhancer type: none (using raw output of ddsp)')
-    
+                            
     # speaker id or mix-speaker dictionary
     spk_mix_dict = literal_eval(cmd.spk_mix_dict)
+    spk_id = torch.LongTensor(np.array([[int(cmd.spk_id)]])).to(device)
+    if cmd.diff_spk_id == 'auto':
+        diff_spk_id = spk_id
+    else:
+        diff_spk_id = torch.LongTensor(np.array([[int(cmd.diff_spk_id)]])).to(device)
     if spk_mix_dict is not None:
         print('Mix-speaker mode')
     else:
-        print('Speaker ID: '+ str(int(cmd.spk_id)))        
-    spk_id = torch.LongTensor(np.array([[int(cmd.spk_id)]])).to(device)
+        print('DDSP Speaker ID: '+ str(int(cmd.spk_id)))
+        print('Diffusion Speaker ID: '+ str(cmd.diff_spk_id)) 
     
+    # speed up
+    if cmd.speedup == 'auto':
+        infer_speedup = args.infer.speedup
+    else:
+        infer_speedup = int(cmd.speedup)
+    if cmd.method == 'auto':
+        method = args.infer.method
+    else:
+        method = cmd.method
+    if infer_speedup > 1:
+        print('Sampling method: '+ method)
+        print('Speed up: '+ str(infer_speedup))
+    else:
+        print('Sampling method: DDPM')
+    
+    ddsp = None
+    input_mel = None
+    k_step = None
+    if cmd.k_step is not None:
+        k_step = int(cmd.k_step)
+        print('Shallow diffusion step: ' + str(k_step))
+        if cmd.ddsp_ckpt != "None":
+            # load ddsp model
+            ddsp, ddsp_args = load_model(cmd.ddsp_ckpt, device=device)
+            if not check_args(ddsp_args, args):
+                print("Cannot use this DDSP model for shallow diffusion, gaussian diffusion will be used!")
+                ddsp = None
+        else:
+            print('DDSP model is not identified!')
+            print('Extracting the mel spectrum of the input audio for shallow diffusion...')
+            audio_t = torch.from_numpy(audio).float().unsqueeze(0).to(device)
+            input_mel = vocoder.extract(audio_t, sample_rate)
+            input_mel = torch.cat((input_mel, input_mel[:,-1:,:]), 1)
+    else:
+        print('Shallow diffusion step is not identified, gaussian diffusion will be used!')
+        
     # forward and save the output
     result = np.zeros(0)
     current_length = 0
@@ -255,31 +325,35 @@ if __name__ == '__main__':
            
             seg_f0 = f0[:, start_frame : start_frame + seg_units.size(1), :]
             seg_volume = volume[:, start_frame : start_frame + seg_units.size(1), :]
-            
-            seg_output, _, (s_h, s_n) = model(seg_units, seg_f0, seg_volume, spk_id = spk_id, spk_mix_dict = spk_mix_dict)
-            seg_output *= mask[:, start_frame * args.data.block_size : (start_frame + seg_units.size(1)) * args.data.block_size]
-            
-            if cmd.enhance == 'true':
-                seg_output, output_sample_rate = enhancer.enhance(
-                                                            seg_output, 
-                                                            args.data.sampling_rate, 
-                                                            seg_f0, 
-                                                            args.data.block_size, 
-                                                            adaptive_key = cmd.enhancer_adaptive_key)
+            if ddsp is not None:
+                seg_ddsp_output, _ , (_, _) = ddsp(seg_units, seg_f0, seg_volume, spk_id = spk_id, spk_mix_dict = spk_mix_dict)
+                seg_input_mel = vocoder.extract(seg_ddsp_output, args.data.sampling_rate)
+            elif input_mel != None:
+                seg_input_mel = input_mel[:, start_frame : start_frame + seg_units.size(1), :]
             else:
-                output_sample_rate = args.data.sampling_rate
-            
+                seg_input_mel = None
+                
+            seg_mel = model(
+                    seg_units, 
+                    seg_f0, 
+                    seg_volume, 
+                    spk_id = diff_spk_id, 
+                    spk_mix_dict = spk_mix_dict,
+                    gt_spec=seg_input_mel,
+                    infer=True, 
+                    infer_speedup=infer_speedup, 
+                    method=method,
+                    k_step=k_step)
+            seg_output = vocoder.infer(seg_mel, seg_f0)
+            seg_output *= mask[:, start_frame * args.data.block_size : (start_frame + seg_units.size(1)) * args.data.block_size]
             seg_output = seg_output.squeeze().cpu().numpy()
             
-            silent_length = round(start_frame * args.data.block_size * output_sample_rate / args.data.sampling_rate) - current_length
+            silent_length = round(start_frame * args.data.block_size) - current_length
             if silent_length >= 0:
                 result = np.append(result, np.zeros(silent_length))
                 result = np.append(result, seg_output)
             else:
                 result = cross_fade(result, seg_output, current_length + silent_length)
             current_length = current_length + silent_length + len(seg_output)
-        sf.write(cmd.output, result, output_sample_rate)
+        sf.write(cmd.output, result, args.data.sampling_rate)
     
-if __name__ == '__main__':
-    #device = 'cpu' 
-    inference()
