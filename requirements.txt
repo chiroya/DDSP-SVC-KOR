@@ -19,6 +19,7 @@ SoundFile
 tensorboard
 torchcrepe
 tqdm
+transformers
 wave
 pysimplegui
 sounddevice
