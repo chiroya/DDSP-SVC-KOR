@@ -90,6 +90,14 @@ def parse_args(args=None, namespace=None):
         help="key changed (number of semitones) | default: 0",
     )
     parser.add_argument(
+        "-f",
+        "--formant_shift_key",
+        type=str,
+        required=False,
+        default=0,
+        help="formant changed (number of semitones) , only for pitch-augmented model| default: 0",
+    )
+    parser.add_argument(
         "-pe",
         "--pitch_extractor",
         type=str,
@@ -239,6 +247,9 @@ if __name__ == '__main__':
     # key change
     f0 = f0 * 2 ** (float(cmd.key) / 12)
     
+    # formant change
+    formant_shift_key = torch.LongTensor(np.array([[float(cmd.formant_shift_key)]])).to(device)
+    
     # extract volume 
     print('Extracting the volume envelope of the input audio...')
     volume_extractor = Volume_Extractor(hop_size)
@@ -326,8 +337,9 @@ if __name__ == '__main__':
             seg_f0 = f0[:, start_frame : start_frame + seg_units.size(1), :]
             seg_volume = volume[:, start_frame : start_frame + seg_units.size(1), :]
             if ddsp is not None:
-                seg_ddsp_output, _ , (_, _) = ddsp(seg_units, seg_f0, seg_volume, spk_id = spk_id, spk_mix_dict = spk_mix_dict)
-                seg_input_mel = vocoder.extract(seg_ddsp_output, args.data.sampling_rate)
+                seg_ddsp_f0 = 2 ** (-float(cmd.formant_shift_key) / 12) * seg_f0
+                seg_ddsp_output, _ , (_, _) = ddsp(seg_units, seg_ddsp_f0, seg_volume, spk_id = spk_id, spk_mix_dict = spk_mix_dict)
+                seg_input_mel = vocoder.extract(seg_ddsp_output, args.data.sampling_rate, keyshift=float(cmd.formant_shift_key))
             elif input_mel != None:
                 seg_input_mel = input_mel[:, start_frame : start_frame + seg_units.size(1), :]
             else:
@@ -339,6 +351,7 @@ if __name__ == '__main__':
                     seg_volume, 
                     spk_id = diff_spk_id, 
                     spk_mix_dict = spk_mix_dict,
+                    aug_shift = formant_shift_key,
                     gt_spec=seg_input_mel,
                     infer=True, 
                     infer_speedup=infer_speedup, 

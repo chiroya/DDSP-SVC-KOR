@@ -5,6 +5,8 @@ import torch
 import librosa
 from logger.saver import Saver
 from logger import utils
+from torch import autocast
+from torch.cuda.amp import GradScaler
 
 def test(args, model, vocoder, loader_test, saver):
     print(' [*] testing...')
@@ -96,6 +98,15 @@ def train(args, initial_global_step, model, optimizer, scheduler, vocoder, loade
     num_batches = len(loader_train)
     model.train()
     saver.log_info('======= start training =======')
+    scaler = GradScaler()
+    if args.train.amp_dtype == 'fp32':
+        dtype = torch.float32
+    elif args.train.amp_dtype == 'fp16':
+        dtype = torch.float16
+    elif args.train.amp_dtype == 'bf16':
+        dtype = torch.bfloat16
+    else:
+        raise ValueError(' [x] Unknown amp_dtype: ' + args.train.amp_dtype)
     for epoch in range(args.train.epochs):
         for batch_idx, data in enumerate(loader_train):
             saver.global_step_increment()
@@ -107,15 +118,26 @@ def train(args, initial_global_step, model, optimizer, scheduler, vocoder, loade
                     data[k] = data[k].to(args.device)
             
             # forward
-            loss = model(data['units'].float(), data['f0'], data['volume'], data['spk_id'], gt_spec=data['mel'].float(), infer=False)
+            if dtype == torch.float32:
+                loss = model(data['units'].float(), data['f0'], data['volume'], data['spk_id'], 
+                                aug_shift = data['aug_shift'], gt_spec=data['mel'].float(), infer=False)
+            else:
+                with autocast(device_type=args.device, dtype=dtype):
+                    loss = model(data['units'], data['f0'], data['volume'], data['spk_id'], 
+                                    aug_shift = data['aug_shift'], gt_spec=data['mel'], infer=False)
             
             # handle nan loss
             if torch.isnan(loss):
                 raise ValueError(' [x] nan loss ')
             else:
                 # backpropagate
-                loss.backward()
-                optimizer.step()
+                if dtype == torch.float32:
+                    loss.backward()
+                    optimizer.step()
+                else:
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
                 scheduler.step()
                 
             # log loss
@@ -145,16 +167,18 @@ def train(args, initial_global_step, model, optimizer, scheduler, vocoder, loade
             
             # validation
             if saver.global_step % args.train.interval_val == 0:
+                optimizer_save = optimizer if args.train.save_opt else None
+                
                 # save latest
-                saver.save_model(model, optimizer, postfix=f'{saver.global_step}')
+                saver.save_model(model, optimizer_save, postfix=f'{saver.global_step}')
                 last_val_step = saver.global_step - args.train.interval_val
                 if last_val_step % args.train.interval_force_save != 0:
                     saver.delete_model(postfix=f'{last_val_step}')
                 
                 # run testing set
-                
                 test_loss = test(args, model, vocoder, loader_test, saver)
-             
+                
+                # log loss
                 saver.log_info(
                     ' --- <validation> --- \nloss: {:.3f}. '.format(
                         test_loss,
