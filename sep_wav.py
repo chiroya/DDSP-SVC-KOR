@@ -90,7 +90,7 @@ def mp4_to_wav(input_dir:str, input_file: str):
         track.export(os.path.join(input_dir,os.path.splitext(input_file)[0]+".wav"), format='wav')
 
 
-def audio_norm(input_filepath: str, output_filepath: str, use_preprocessing = True):
+def audio_norm(input_filepath: str, output_filepath: str, sample_rate = 44100, use_preprocessing = True):
     """오디오 파일에 노멀라이징 효과를 적용합니다.
 
     Args:
@@ -103,6 +103,13 @@ def audio_norm(input_filepath: str, output_filepath: str, use_preprocessing = Tr
     assert ext in ["wav", "flac"], "지원하지 않는 포멧입니다."
 
     rawsound = AudioSegment.from_file(input_filepath, format=ext)
+
+    # change sample rate
+    rawsound = rawsound.set_frame_rate(sample_rate)
+
+    # change channels
+    if rawsound.channels != 1 :
+        rawsound = rawsound.set_channels(1)
 
     normalizedsound = effects.normalize(rawsound)
     normalizedsound.export(output_filepath, format="flac")
@@ -287,6 +294,14 @@ def demucs(input_path, output_path):
             os.remove(temp_log_path)
 
         waveform, sample_rate = torchaudio.load(filepath)  # replace SAMPLE_SONG with desired path for different song
+
+        # Check number of channels
+        num_channels = waveform.shape[0]
+
+        # If audio is stereo, convert to mono
+        if num_channels == 1:
+            waveform = torchaudio.functional.remix_channels(waveform, [0, 0])
+
         waveform.to(device)
 
         # parameters
